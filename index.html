@@ -2,52 +2,192 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>천체 크기 비교</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>천체 크기 비교 3D 실험실</title>
 <style>
-  body { margin: 0; overflow: hidden; background: #050510; overscroll-behavior: none; font-family: sans-serif; color: white; }
-  canvas { display: block; outline: none; }
-  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-  .label { position: absolute; transform: translate(-50%, -100%); margin-top: -15px; background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 6px; font-size: 13px; pointer-events: auto; cursor: pointer; white-space: nowrap; border: 1px solid rgba(255,255,255,0.2); transition: background 0.2s; }
-  .label:hover { background: rgba(40,80,200,0.8); }
-  .label .name { font-weight: bold; margin-bottom: 3px; }
-  .label .size { font-size: 11px; color: #aaa; }
-  
-  #info-panel { position: absolute; right: -320px; top: 20px; width: 260px; background: rgba(20, 25, 40, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.15); transition: right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-  #info-panel.show { right: 20px; }
-  .close-btn { position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 20px; color: #888; transition: color 0.2s; }
-  .close-btn:hover { color: white; }
-  h2 { margin: 0 0 5px 0; font-size: 22px; color: #fff; }
-  p { margin: 0 0 15px 0; font-size: 14px; color: #4dabf7; font-weight: bold; }
-  
-  .compare-box { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.05); }
-  .compare-title { font-size: 13px; color: #bbb; margin-bottom: 8px; }
-  select { width: 100%; padding: 10px; border-radius: 6px; background: #1a1f35; color: white; border: 1px solid #444; outline: none; font-size: 14px; cursor: pointer; }
-  select:focus { border-color: #4dabf7; }
-  
-  #fullscreenBtn { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(10, 15, 30, 0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; width: 48px; height: 48px; cursor: pointer; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); pointer-events: auto; transition: background 0.2s; }
-  #fullscreenBtn:hover { background: rgba(30, 40, 60, 0.9); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden;
+    background: radial-gradient(circle at 50% 35%, #ffffff 0%, #f1f5f9 55%, #cbd5e1 100%);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    overscroll-behavior: none; touch-action: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+  /* 3D 천체 이름표 레이어 */
+  #labels-container {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 10;
+  }
+  .planet-label {
+    position: absolute; transform: translate(-50%, -100%);
+    margin-top: -10px; padding: 6px 11px; border-radius: 10px;
+    background: rgba(15, 23, 42, 0.78); color: #ffffff;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    pointer-events: auto; cursor: pointer; white-space: nowrap;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    display: flex; flex-direction: column; align-items: center; line-height: 1.25;
+  }
+  .planet-label:active, .planet-label.active {
+    background: rgba(37, 99, 235, 0.92);
+    border-color: rgba(147, 197, 253, 0.8);
+    transform: translate(-50%, -100%) scale(1.06);
+    z-index: 25;
+  }
+  .planet-label .ko-name { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; }
+  .planet-label .km-size { font-size: 11px; color: #cbd5e1; font-weight: 500; margin-top: 1px; }
+  .planet-label.active .km-size { color: #eff6ff; }
+  .planet-label::after {
+    content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+    border-width: 5px 5px 0; border-style: solid;
+    border-color: rgba(15, 23, 42, 0.78) transparent transparent;
+  }
+  .planet-label.active::after {
+    border-color: rgba(37, 99, 235, 0.92) transparent transparent;
+  }
+
+  /* 우측 소형 세부 정보 및 비교 탭 */
+  #side-tab {
+    position: fixed; top: 18px; right: 18px; width: 290px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 18px; padding: 18px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+    z-index: 100; color: #0f172a;
+    transform: translateX(340px); opacity: 0; pointer-events: none;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+  }
+  #side-tab.open {
+    transform: translateX(0); opacity: 1; pointer-events: auto;
+  }
+  .tab-header {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .badge {
+    display: inline-block; padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; color: #fff; background: #3b82f6;
+    margin-bottom: 4px;
+  }
+  .title-wrap h2 {
+    margin: 0; font-size: 21px; font-weight: 800; color: #0f172a; letter-spacing: -0.4px;
+  }
+  .title-wrap span {
+    font-size: 12px; color: #64748b; font-weight: 600; margin-left: 4px;
+  }
+  .close-btn {
+    width: 34px; height: 34px; border-radius: 10px; border: none;
+    background: #f1f5f9; color: #475569; font-size: 16px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .close-btn:active { background: #e2e8f0; }
+
+  .metrics-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+  }
+  .metric-card {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 11px; padding: 9px 10px;
+  }
+  .metric-card .m-label { font-size: 11px; color: #64748b; font-weight: 600; }
+  .metric-card .m-val { font-size: 14px; font-weight: 800; color: #1e293b; margin-top: 2px; }
+  .metric-card .m-val.highlight { color: #2563eb; }
+
+  .desc-text {
+    font-size: 12.5px; line-height: 1.5; color: #334155; margin: 0 0 14px 0;
+    background: #f8fafc; padding: 10px 12px; border-radius: 10px; border: 1px solid #f1f5f9;
+  }
+
+  .compare-section {
+    border-top: 1px solid #e2e8f0; padding-top: 12px;
+  }
+  .compare-label {
+    font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 7px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .compare-select {
+    width: 100%; height: 42px; padding: 0 12px; border-radius: 10px;
+    border: 1.5px solid #cbd5e1; background: #ffffff; color: #0f172a;
+    font-size: 13.5px; font-weight: 600; outline: none; cursor: pointer;
+  }
+  .compare-select:focus { border-color: #2563eb; }
+
+  #compare-result {
+    margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    background: #eff6ff; border: 1px solid #bfdbfe; display: none;
+  }
+  #compare-result.show { display: block; }
+  #compare-result .cr-title { font-size: 12px; font-weight: 700; color: #1e40af; margin-bottom: 4px; }
+  #compare-result .cr-stat { font-size: 12px; color: #1e3a8a; line-height: 1.45; }
+  .exit-compare-btn {
+    margin-top: 8px; width: 100%; padding: 8px; border-radius: 8px;
+    border: none; background: #2563eb; color: #ffffff; font-size: 12.5px;
+    font-weight: 700; cursor: pointer;
+  }
+
+  /* 전체화면 버튼 (요청 이미지 디자인) */
+  #fullscreenBtn {
+    position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+    background: rgba(10, 15, 30, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px; width: 50px; height: 50px;
+    cursor: pointer; display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  #fullscreenBtn:active { transform: scale(0.93); background: rgba(25, 35, 60, 0.95); }
+  #fullscreenBtn svg {
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.55));
+  }
 </style>
 </head>
 <body>
 
-<div id="ui-layer"></div>
+<div id="labels-container"></div>
 
-<div id="info-panel">
-  <div class="close-btn" id="closeBtn">✕</div>
-  <h2 id="p-name">이름</h2>
-  <p id="p-size">0 km</p>
-  <div class="compare-box">
-    <div class="compare-title">🪐 다른 천체와 크기 비교하기</div>
-    <select id="compareSelect">
-      <option value="">-- 천체 선택 --</option>
+<!-- 행성 터치 시 나타나는 우측 세부 정보 및 크기 비교 탭 -->
+<div id="side-tab">
+  <div class="tab-header">
+    <div class="title-wrap">
+      <div class="badge" id="tab-badge">행성</div>
+      <div><h2 id="tab-ko" style="display:inline;">지구</h2><span id="tab-en">Earth</span></div>
+    </div>
+    <button class="close-btn" id="closeTabBtn" title="닫기">✕</button>
+  </div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="m-label">적도 지름</div>
+      <div class="m-val highlight" id="tab-diameter">12,756 km</div>
+    </div>
+    <div class="metric-card">
+      <div class="m-label">지구 대비 크기</div>
+      <div class="m-val" id="tab-earth-ratio">1.0배</div>
+    </div>
+  </div>
+
+  <p class="desc-text" id="tab-desc">설명</p>
+
+  <div class="compare-section">
+    <div class="compare-label">🪐 다른 천체와 크기 비교하기</div>
+    <select class="compare-select" id="compareSelect">
+      <option value="">-- 비교할 천체 선택 --</option>
     </select>
+    <div id="compare-result">
+      <div class="cr-title" id="cr-title">비교 결과</div>
+      <div class="cr-stat" id="cr-stat"></div>
+      <button class="exit-compare-btn" id="exitCompareBtn">전체 천체 배치로 돌아가기</button>
+    </div>
   </div>
 </div>
 
-<button id="fullscreenBtn">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+<!-- 우측 하단 전체화면 토글 버튼 -->
+<button id="fullscreenBtn" title="전체화면 전환">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path id="fs-path" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
   </svg>
 </button>
 
@@ -55,189 +195,472 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-const data = [
-  { id: 'charon', name: '카론 (Charon)', d: 1207, color: 0x888888 },
-  { id: 'pluto', name: '플루토 (Pluto)', d: 2306, color: 0xddbb99 },
-  { id: 'eris', name: '에리스 (Eris)', d: 2400, color: 0xcccccc },
-  { id: 'moon', name: '달 (Moon)', d: 3476, color: 0xaaaaaa },
-  { id: 'mercury', name: '수성 (Mercury)', d: 4879, color: 0x999999 },
-  { id: 'titan', name: '타이탄 (Titan)', d: 5150, color: 0xd6b075 },
-  { id: 'ganymede', name: '가니메데 (Ganymede)', d: 5262, color: 0xb5a797 },
-  { id: 'mars', name: '화성 (Mars)', d: 6805, color: 0xc1440e },
-  { id: 'venus', name: '금성 (Venus)', d: 12104, color: 0xe6e6fa },
-  { id: 'earth', name: '지구 (Earth)', d: 12756, color: 0x2b82c9 },
-  { id: 'neptune', name: '해왕성 (Neptune)', d: 49528, color: 0x274687 },
-  { id: 'uranus', name: '천왕성 (Uranus)', d: 51118, color: 0x4b70dd },
-  { id: 'saturn', name: '토성 (Saturn)', d: 120536, color: 0xead6b8 },
-  { id: 'jupiter', name: '목성 (Jupiter)', d: 142984, color: 0xc88b3a },
-  { id: 'sun', name: '태양 (Sun)', d: 1392000, color: 0xffcc33, isStar: true },
-  { id: 'sirius', name: '시리우스 (Sirius)', d: 1392000 * 1.8, color: 0xaaccff, isStar: true },
-  { id: 'bluegiant', name: '청색 거성', d: 1392000 * 70, color: 0x4488ff, isStar: true },
-  { id: 'redgiant', name: '적색 거성', d: 1392000 * 250, color: 0xff4422, isStar: true },
-  { id: 'redsuper', name: '적색 초거성', d: 1392000 * 1000, color: 0xff2200, isStar: true }
+// 19개 천체 데이터 및 다중 스케일 군집(Cluster) 3D 좌표 (1 unit = 1,000 km)
+const CELESTIAL_DATA = [
+  { id: 'charon', ko: '카론', en: 'Charon', d: 1207, cat: '왜소행성 위성', badgeColor: '#64748b', type: 'rocky', c1: '#94a3b8', c2: '#64748b', c3: '#475569', pos: [-26, 56], desc: '명왕성의 가장 큰 위성으로, 명왕성 지름의 절반이 넘어 이중 행성계처럼 서로 공전함.' },
+  { id: 'pluto', ko: '플루토', en: 'Pluto', d: 2306, cat: '왜소행성', badgeColor: '#64748b', type: 'rocky', c1: '#e2cba0', c2: '#c2a378', c3: '#8c6d46', pos: [-22.5, 56], desc: '카이퍼 벨트의 대표적인 왜소행성으로 표면에 하트 모양의 거대한 질소 얼음 평원이 있음.' },
+  { id: 'eris', ko: '에리스', en: 'Eris', d: 2400, cat: '왜소행성', badgeColor: '#64748b', type: 'rocky', c1: '#f1f5f9', c2: '#cbd5e1', c3: '#94a3b8', pos: [-18.5, 56], desc: '해왕성 바깥 궤도를 도는 왜소행성으로 메탄 얼음으로 덮여 있어 태양계에서 가장 밝게 빛을 반사함.' },
+  { id: 'moon', ko: '달', en: 'Moon', d: 3476, cat: '지구 위성', badgeColor: '#475569', type: 'rocky', c1: '#cbd5e1', c2: '#94a3b8', c3: '#475569', pos: [-13.5, 56], desc: '지구의 유일한 자연 위성으로 지구 지름의 약 4분의 1 크기이며 수많은 운석 구덩이가 보존되어 있음.' },
+  { id: 'mercury', ko: '수성', en: 'Mercury', d: 4879, cat: '암석 행성', badgeColor: '#d97706', type: 'rocky', c1: '#a8a29e', c2: '#78716c', c3: '#57534e', pos: [-7, 56], desc: '태양에 가장 가까운 암석 행성으로 대기가 거의 없어 낮과 밤의 표면 온도 차가 극심함.' },
+  { id: 'titan', ko: '타이탄', en: 'Titan', d: 5150, cat: '토성 최대 위성', badgeColor: '#475569', type: 'atmosphere', c1: '#f59e0b', c2: '#d97706', c3: '#b45309', pos: [0.5, 56], desc: '토성의 가장 큰 위성으로 수성보다도 크며, 짙은 질소 대기와 액체 메탄 강·호수가 존재함.' },
+  { id: 'ganymede', ko: '가니메데', en: 'Ganymede', d: 5262, cat: '목성 최대 위성', badgeColor: '#475569', type: 'rocky', c1: '#d6d3d1', c2: '#a8a29e', c3: '#57534e', pos: [8.5, 56], desc: '태양계에서 가장 큰 위성으로 수성보다 지름이 크며 독자적인 자기장을 가지고 있음.' },
+  { id: 'mars', ko: '화성', en: 'Mars', d: 6805, cat: '암석 행성', badgeColor: '#d97706', type: 'rocky', c1: '#ef4444', c2: '#c2410c', c3: '#7c2d12', pos: [18, 56], desc: '산화철 성분 때문에 붉게 보이는 지구형 행성으로 태양계 최고봉인 올림푸스 화산이 있음.' },
+  { id: 'venus', ko: '금성', en: 'Venus', d: 12104, cat: '암석 행성', badgeColor: '#d97706', type: 'banded', c1: '#fde68a', c2: '#f59e0b', c3: '#d97706', pos: [31, 56], desc: '지구와 크기가 가장 비슷한 쌍둥이 행성이지만 두꺼운 이산화탄소 대기로 강한 온실효과가 일어남.' },
+  { id: 'earth', ko: '지구', en: 'Earth', d: 12756, cat: '암석 행성', badgeColor: '#2563eb', type: 'earth', c1: '#2563eb', c2: '#16a34a', c3: '#ffffff', pos: [49, 56], desc: '바다와 대륙, 흰 구름이 조화를 이루는 행성으로 암석 행성 4개 중 가장 큼.' },
+  { id: 'neptune', ko: '해왕성', en: 'Neptune', d: 49528, cat: '얼음 거대 행성', badgeColor: '#0284c7', type: 'banded', c1: '#3b82f6', c2: '#1d4ed8', c3: '#1e3a8a', pos: [-32, 16], desc: '태양계 가장 바깥쪽 행성으로 대기 중 메탄이 붉은 빛을 흡수하여 짙고 푸른 빛을 띰.' },
+  { id: 'uranus', ko: '천왕성', en: 'Uranus', d: 51118, cat: '얼음 거대 행성', badgeColor: '#0284c7', type: 'banded', c1: '#a5f3fc', c2: '#38bdf8', c3: '#0284c7', pos: [32, 16], desc: '자전축이 약 98도 누운 채 공전하는 얼음 거대 행성으로 지구 지름의 약 4배 크기임.' },
+  { id: 'saturn', ko: '토성', en: 'Saturn', d: 120536, cat: '가스 거대 행성', badgeColor: '#ea580c', type: 'banded', c1: '#fde68a', c2: '#eab308', c3: '#ca8a04', hasRing: true, pos: [-110, -80], desc: '얼음과 암석 입자로 이루어진 거대하고 아름다운 고리를 가진 가스 행성으로 지구의 약 9.5배 크기임.' },
+  { id: 'jupiter', ko: '목성', en: 'Jupiter', d: 142984, cat: '가스 거대 행성', badgeColor: '#ea580c', type: 'jupiter', c1: '#fed7aa', c2: '#ea580c', c3: '#9a3412', pos: [95, -80], desc: '태양계에서 가장 큰 행성으로 지구 지름의 약 11.2배에 달하며 거대한 폭풍인 대적점이 있음.' },
+  { id: 'sun', ko: '태양', en: 'Sun', d: 1392000, cat: '황색 주계열성', badgeColor: '#f59e0b', type: 'star', c1: '#fef08a', c2: '#f59e0b', c3: '#ea580c', pos: [0, -900], desc: '태양계 중심 항성으로 지름이 약 139만 2,000km에 달해 지구 지름의 약 109배 크기임.' },
+  { id: 'sirius', ko: '시리우스', en: 'Sirius', d: Math.round(1392000 * 1.8), cat: '백색 주계열성 (태양의 1.8배)', badgeColor: '#3b82f6', type: 'star', c1: '#ffffff', c2: '#bae6fd', c3: '#38bdf8', pos: [2300, -1350], desc: '밤하늘에서 가장 밝게 보이는 항성으로 태양 직경의 약 1.8배 크기이며 청백색으로 빛남.' },
+  { id: 'bluegiant', ko: '청색 거성', en: 'Blue Giant', d: 1392000 * 70, cat: '거성 (태양의 70배)', badgeColor: '#1d4ed8', type: 'star', c1: '#e0f2fe', c2: '#3b82f6', c3: '#1d4ed8', pos: [70000, -52000], desc: '표면 온도가 매우 높고 질량이 큰 별이 진화한 청색 거성으로 태양 직경의 약 70배 크기임.' },
+  { id: 'redgiant', ko: '적색 거성', en: 'Red Giant', d: 1392000 * 250, cat: '거성 (태양의 250배)', badgeColor: '#dc2626', type: 'star', c1: '#fecaca', c2: '#f97316', c3: '#dc2626', pos: [330000, -210000], desc: '수소 핵융합을 마치고 크게 팽창한 단계의 항성으로 태양 직경의 약 250배 크기임.' },
+  { id: 'redsuper', ko: '적색 초거성', en: 'Red Supergiant', d: 1392000 * 1000, cat: '초거성 (태양의 1,000배)', badgeColor: '#991b1b', type: 'star', c1: '#fed7aa', c2: '#ef4444', c3: '#991b1b', pos: [1350000, -900000], desc: '태양 직경의 약 1,000배(약 13억 9,200만 km)에 달하는 초거대 항성으로 목성 궤도까지 집어삼킬 크기임.' }
 ];
 
+const SCALE = 1000; // 1 unit = 1,000 km
+
+// Three.js 초기화 (로그 깊이 버퍼 적용으로 1,207km ~ 13억 9,200만km 동시 렌더링)
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000000000);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.05, 25000000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); // 갤럭시 탭 S6 Lite 프레임 방어
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
 document.body.appendChild(renderer.domElement);
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.maxDistance = 1500000000;
+controls.dampingFactor = 0.07;
+controls.screenSpacePanning = true;
+controls.minDistance = 0.8;
+controls.maxDistance = 8000000;
+controls.rotateSpeed = 0.65;
+controls.panSpeed = 0.9;
+controls.zoomSpeed = 1.1;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-scene.add(ambientLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(1, 0.5, 1);
+// 스튜디오 조명 세팅 (12tune 영상 느낌)
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0xcbd5e1, 0.85);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+dirLight.position.set(-150, 300, 250);
 scene.add(dirLight);
 
-const uiLayer = document.getElementById('ui-layer');
-const select = document.getElementById('compareSelect');
-const meshes = [];
-const labels = [];
-let activeObj = null;
-let originalPositions = {};
+// 절차적 캔버스 텍스처 생성 함수
+function createPlanetTexture(item) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
 
-const SCALE = 1000; 
-let currentX = 0;
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, item.c1);
+  grad.addColorStop(0.5, item.c2);
+  grad.addColorStop(1, item.c3);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 256);
 
-data.forEach((obj, i) => {
-  const radius = (obj.d / 2) / SCALE;
-  const geom = new THREE.SphereGeometry(radius, 64, 64);
-  
-  let mat;
-  if(obj.isStar) {
-    mat = new THREE.MeshBasicMaterial({ color: obj.color });
-  } else {
-    mat = new THREE.MeshLambertMaterial({ color: obj.color });
+  if (item.type === 'jupiter' || item.type === 'banded') {
+    const bands = item.type === 'jupiter' ? 28 : 16;
+    for (let i = 0; i < bands; i++) {
+      const y = (i / bands) * 256;
+      const h = (256 / bands) * (0.4 + Math.random() * 0.9);
+      ctx.fillStyle = i % 2 === 0 ? item.c1 : item.c3;
+      ctx.globalAlpha = item.type === 'jupiter' ? 0.35 : 0.18;
+      ctx.fillRect(0, y, 512, h);
+    }
+    if (item.type === 'jupiter') {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = '#c2410c';
+      ctx.beginPath();
+      ctx.ellipse(310, 155, 36, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffedd5';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  } else if (item.type === 'earth') {
+    ctx.fillStyle = '#1d4ed8';
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.fillStyle = '#15803d';
+    ctx.globalAlpha = 0.85;
+    const continents = [[90,70,55,40],[150,140,40,55],[270,65,85,48],[290,130,45,55],[400,150,45,32],[55,120,30,30]];
+    continents.forEach(([x, y, rx, ry]) => {
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0.3, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(0, 0, 512, 16);
+    ctx.fillRect(0, 240, 512, 16);
+    ctx.globalAlpha = 0.35;
+    for (let i = 0; i < 35; i++) {
+      ctx.beginPath();
+      ctx.ellipse(Math.random() * 512, Math.random() * 256, 20 + Math.random() * 45, 5 + Math.random() * 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (item.type === 'rocky') {
+    for (let i = 0; i < 65; i++) {
+      const x = Math.random() * 512;
+      const y = 20 + Math.random() * 216;
+      const r = 3 + Math.random() * 16;
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = item.c3;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = item.c1;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  } else if (item.type === 'star') {
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 256;
+      const r = 6 + Math.random() * 26;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = i % 2 === 0 ? item.c1 : item.c2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
   }
-  
-  const mesh = new THREE.Mesh(geom, mat);
-  
-  if(i === 0) currentX = radius;
-  else currentX += radius * 1.5;
-  
-  mesh.position.set(currentX, radius, 0);
-  currentX += radius * 1.5;
-  
-  if(obj.id === 'saturn') {
-    const ringGeom = new THREE.RingGeometry(radius * 1.2, radius * 2.2, 64);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xcca677, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
-    const ring = new THREE.Mesh(ringGeom, ringMat);
-    ring.rotation.x = Math.PI / 2 + 0.2;
-    mesh.add(ring);
-  }
 
-  mesh.userData = { id: obj.id, name: obj.name, d: obj.d, radius: radius };
-  originalPositions[obj.id] = mesh.position.clone();
-  scene.add(mesh);
-  meshes.push(mesh);
-  
-  const label = document.createElement('div');
-  label.className = 'label';
-  label.innerHTML = `<div class="name">${obj.name}</div><div class="size">${obj.d.toLocaleString()} km</div>`;
-  label.onclick = (e) => { e.stopPropagation(); focusOn(mesh); };
-  uiLayer.appendChild(label);
-  labels.push({ element: label, mesh: mesh });
-  
-  const opt = document.createElement('option');
-  opt.value = obj.id;
-  opt.textContent = obj.name;
-  select.appendChild(opt);
-});
-
-camera.position.set(originalPositions['earth'].x, originalPositions['earth'].y * 2, originalPositions['earth'].z + 50);
-controls.target.copy(originalPositions['earth']);
-
-function focusOn(mesh) {
-  activeObj = mesh;
-  const r = mesh.userData.radius;
-  const pos = mesh.position;
-  
-  controls.target.copy(pos);
-  const dist = r * 4;
-  camera.position.set(pos.x, pos.y + r*0.5, pos.z + dist);
-  
-  document.getElementById('p-name').textContent = mesh.userData.name;
-  document.getElementById('p-size').textContent = `직경: ${mesh.userData.d.toLocaleString()} km`;
-  document.getElementById('info-panel').classList.add('show');
-  
-  select.value = "";
-  restorePositions();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
 }
 
-function restorePositions() {
-  meshes.forEach(m => {
-    m.position.copy(originalPositions[m.userData.id]);
+// 토성 고리 텍스처 생성
+function createSaturnRingTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  for (let x = 0; x < 512; x++) {
+    const t = x / 512;
+    let alpha = 0;
+    let col = '#fde68a';
+    if (t > 0.12 && t < 0.28) { alpha = 0.25; col = '#d6d3d1'; }
+    else if (t >= 0.28 && t < 0.62) { alpha = 0.78 + Math.sin(t * 95) * 0.12; col = '#fef08a'; }
+    else if (t >= 0.62 && t < 0.68) { alpha = 0.06; } // 카시니 간극
+    else if (t >= 0.68 && t < 0.93) { alpha = 0.55 + Math.cos(t * 70) * 0.1; col = '#fed7aa'; }
+    ctx.fillStyle = col;
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.fillRect(x, 0, 1, 64);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+// 항성 코로나 글로우 스프라이트 텍스처
+function createGlowTexture(colorHex) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createRadialGradient(128, 128, 25, 128, 128, 128);
+  grad.addColorStop(0, colorHex);
+  grad.addColorStop(0.4, colorHex + '66');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(canvas);
+}
+
+const labelsContainer = document.getElementById('labels-container');
+const compareSelect = document.getElementById('compareSelect');
+const planetMeshes = [];
+const planetMap = {};
+
+CELESTIAL_DATA.forEach((item, index) => {
+  const radius = (item.d / 2) / SCALE;
+  const geom = new THREE.SphereGeometry(radius, 48, 36);
+  const tex = createPlanetTexture(item);
+
+  let mat;
+  if (item.type === 'star') {
+    mat = new THREE.MeshBasicMaterial({ map: tex });
+  } else {
+    mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.05 });
+  }
+
+  const mesh = new THREE.Mesh(geom, mat);
+  const homePos = new THREE.Vector3(item.pos[0], radius, item.pos[1]);
+  mesh.position.copy(homePos);
+
+  if (item.hasRing) {
+    const innerR = radius * 1.25;
+    const outerR = radius * 2.32;
+    const ringGeo = new THREE.RingGeometry(innerR, outerR, 96);
+    const posAttr = ringGeo.attributes.position;
+    const uvAttr = ringGeo.attributes.uv;
+    const v3 = new THREE.Vector3();
+    for (let i = 0; i < posAttr.count; i++) {
+      v3.fromBufferAttribute(posAttr, i);
+      const u = (v3.length() - innerR) / (outerR - innerR);
+      uvAttr.setXY(i, u, 0.5);
+    }
+    const ringMat = new THREE.MeshBasicMaterial({
+      map: createSaturnRingTexture(),
+      side: THREE.DoubleSide,
+      transparent: true,
+      depthWrite: false
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.rotation.x = Math.PI / 2 - 0.32;
+    ringMesh.rotation.y = 0.15;
+    mesh.add(ringMesh);
+  }
+
+  if (item.type === 'star') {
+    const spriteMat = new THREE.SpriteMaterial({
+      map: createGlowTexture(item.c2),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Sprite(spriteMat);
+    glow.scale.set(radius * 2.8, radius * 2.8, 1);
+    mesh.add(glow);
+  }
+
+  // 라벨 DOM 생성
+  const labelEl = document.createElement('div');
+  labelEl.className = 'planet-label';
+  labelEl.innerHTML = `<span class="ko-name">${item.ko}</span><span class="km-size">${item.d.toLocaleString()} km</span>`;
+  labelEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectAndFocusPlanet(item.id);
+  });
+  labelsContainer.appendChild(labelEl);
+
+  mesh.userData = { ...item, radius, homePos, labelEl, index };
+  scene.add(mesh);
+  planetMeshes.push(mesh);
+  planetMap[item.id] = mesh;
+
+  // 비교 드롭다운 옵션 추가
+  const opt = document.createElement('option');
+  opt.value = item.id;
+  opt.textContent = `${item.ko} (${item.d.toLocaleString()} km)`;
+  compareSelect.appendChild(opt);
+});
+
+// 카메라 부드러운 이동 애니메이션 상태
+let camAnim = null;
+function animateCameraTo(targetPos, camPos, duration = 650) {
+  camAnim = {
+    startTarget: controls.target.clone(),
+    endTarget: targetPos.clone(),
+    startCam: camera.position.clone(),
+    endCam: camPos.clone(),
+    startTime: performance.now(),
+    duration
+  };
+}
+
+// 초기 카메라 구도: 12tune 영상처럼 토성·목성과 앞쪽 지구형 행성들이 한눈에 보이는 시점
+function setInitialOverview(immediate = true) {
+  const aspect = window.innerWidth / window.innerHeight;
+  const distFactor = aspect < 1 ? 1.45 : 1.0;
+  const target = new THREE.Vector3(-5, 42, -25);
+  const camPos = new THREE.Vector3(10, 95 * distFactor, 245 * distFactor);
+  if (immediate) {
+    controls.target.copy(target);
+    camera.position.copy(camPos);
+    controls.update();
+  } else {
+    animateCameraTo(target, camPos, 700);
+  }
+}
+setInitialOverview(true);
+
+let selectedId = null;
+let isCompareMode = false;
+
+// 모든 천체를 원래 군집 배치로 복원
+function restoreClusterLayout() {
+  isCompareMode = false;
+  document.getElementById('compare-result').classList.remove('show');
+  compareSelect.value = '';
+  planetMeshes.forEach(m => {
     m.visible = true;
+    m.position.copy(m.userData.homePos);
   });
 }
 
-select.addEventListener('change', (e) => {
-  if(!activeObj) return;
-  const targetId = e.target.value;
-  restorePositions();
-  
-  if(targetId) {
-    const compareMesh = meshes.find(m => m.userData.id === targetId);
-    if(compareMesh && compareMesh !== activeObj) {
-      meshes.forEach(m => { if(m !== activeObj && m !== compareMesh) m.visible = false; });
-      const r1 = activeObj.userData.radius;
-      const r2 = compareMesh.userData.radius;
-      activeObj.position.set(-r1 * 1.1, Math.max(r1, r2), 0);
-      compareMesh.position.set(r2 * 1.1, Math.max(r1, r2), 0);
-      
-      const center = new THREE.Vector3(0, Math.max(r1, r2), 0);
-      controls.target.copy(center);
-      const maxR = Math.max(r1, r2);
-      camera.position.set(0, maxR, maxR * 4 + (r1+r2));
-    }
+// 천체 터치 시 초점 이동 및 우측 탭 오픈
+function selectAndFocusPlanet(id) {
+  const mesh = planetMap[id];
+  if (!mesh) return;
+
+  if (isCompareMode) restoreClusterLayout();
+  selectedId = id;
+
+  // 라벨 활성화 표시
+  planetMeshes.forEach(m => {
+    m.userData.labelEl.classList.toggle('active', m.userData.id === id);
+  });
+
+  // 우측 탭 정보 업데이트
+  const info = mesh.userData;
+  const badgeEl = document.getElementById('tab-badge');
+  badgeEl.textContent = info.cat;
+  badgeEl.style.background = info.badgeColor;
+  document.getElementById('tab-ko').textContent = info.ko;
+  document.getElementById('tab-en').textContent = info.en;
+  document.getElementById('tab-diameter').textContent = `${info.d.toLocaleString()} km`;
+
+  const earthRatio = info.d / 12756;
+  document.getElementById('tab-earth-ratio').textContent =
+    earthRatio >= 10 ? `약 ${Math.round(earthRatio).toLocaleString()}배` : `약 ${earthRatio.toFixed(2)}배`;
+  document.getElementById('tab-desc').textContent = info.desc;
+
+  // 자기 자신은 드롭다운에서 비활성화 표시
+  Array.from(compareSelect.options).forEach(opt => {
+    opt.disabled = (opt.value === id);
+  });
+
+  document.getElementById('side-tab').classList.add('open');
+
+  // 화면 비율을 고려해 해당 천체와 주변 비교 천체가 잘 보이도록 초점 이동
+  const r = info.radius;
+  const aspect = window.innerWidth / window.innerHeight;
+  const aspectScale = aspect < 1 ? 1.5 : 1.05;
+  const dist = Math.max(r * 4.2 * aspectScale, 2.5);
+
+  const target = info.homePos.clone();
+  const camPos = new THREE.Vector3(
+    target.x + r * 0.35,
+    target.y + r * 0.75,
+    target.z + dist
+  );
+  animateCameraTo(target, camPos, 650);
+}
+
+// 두 천체 나란히 크기 비교 실행
+function runComparison(targetId) {
+  if (!selectedId || !targetId || selectedId === targetId) return;
+  const meshA = planetMap[selectedId];
+  const meshB = planetMap[targetId];
+  if (!meshA || !meshB) return;
+
+  isCompareMode = true;
+  planetMeshes.forEach(m => {
+    m.visible = (m === meshA || m === meshB);
+  });
+
+  const rA = meshA.userData.radius;
+  const rB = meshB.userData.radius;
+  const maxR = Math.max(rA, rB);
+  const gap = maxR * 0.35;
+
+  meshA.position.set(-(rA + gap * 0.5), rA, 0);
+  meshB.position.set(rB + gap * 0.5, rB, 0);
+
+  const center = new THREE.Vector3((meshA.position.x + meshB.position.x) * 0.5, maxR * 0.85, 0);
+  const totalSpan = (rA * 2) + (rB * 2) + gap;
+  const aspect = window.innerWidth / window.innerHeight;
+  const dist = (totalSpan * 1.15) / Math.min(1, aspect * 0.85);
+
+  animateCameraTo(center, new THREE.Vector3(center.x, maxR * 1.1, dist), 650);
+
+  // 비교 수치 계산 표시
+  const big = meshA.userData.d >= meshB.userData.d ? meshA.userData : meshB.userData;
+  const small = meshA.userData.d < meshB.userData.d ? meshA.userData : meshB.userData;
+  const dRatio = big.d / small.d;
+  const vRatio = Math.pow(dRatio, 3);
+
+  document.getElementById('cr-title').textContent = `${big.ko} vs ${small.ko}`;
+  document.getElementById('cr-stat').innerHTML =
+    `• 지름 차이: <b>${big.ko}</b>이(가) <b>${small.ko}</b>의 <b>약 ${dRatio >= 10 ? Math.round(dRatio).toLocaleString() : dRatio.toFixed(1)}배</b><br>` +
+    `• 부피 차이: <b>약 ${vRatio >= 1000 ? Math.round(vRatio).toLocaleString() : vRatio.toFixed(1)}배</b>`;
+  document.getElementById('compare-result').classList.add('show');
+}
+
+compareSelect.addEventListener('change', (e) => {
+  const val = e.target.value;
+  if (!val) {
+    if (selectedId) selectAndFocusPlanet(selectedId);
   } else {
-    focusOn(activeObj);
+    runComparison(val);
   }
 });
 
+document.getElementById('exitCompareBtn').addEventListener('click', () => {
+  if (selectedId) selectAndFocusPlanet(selectedId);
+});
+
+function closeSideTab() {
+  document.getElementById('side-tab').classList.remove('open');
+  planetMeshes.forEach(m => m.userData.labelEl.classList.remove('active'));
+  if (isCompareMode) {
+    restoreClusterLayout();
+    if (selectedId) {
+      const m = planetMap[selectedId];
+      const r = m.userData.radius;
+      animateCameraTo(m.userData.homePos, new THREE.Vector3(m.userData.homePos.x, m.userData.homePos.y + r, m.userData.homePos.z + r * 4.5), 600);
+    }
+  }
+  selectedId = null;
+}
+
+document.getElementById('closeTabBtn').addEventListener('click', closeSideTab);
+
+// 태블릿/S펜 터치 및 마우스 클릭 레이캐스팅 (드래그와 탭 구분)
 const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let dragStart = { x: 0, y: 0 };
+const pointer = new THREE.Vector2();
+let downPos = { x: 0, y: 0, time: 0 };
 
-window.addEventListener('pointerdown', (e) => { dragStart = { x: e.clientX, y: e.clientY }; });
-window.addEventListener('pointerup', (e) => {
-  if (Math.abs(e.clientX - dragStart.x) < 5 && Math.abs(e.clientY - dragStart.y) < 5) {
-    if(e.target.closest('#info-panel') || e.target.closest('#fullscreenBtn') || e.target.closest('.label')) return;
-    
-    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(meshes);
-    
-    if (intersects.length > 0) {
-      focusOn(intersects[0].object);
+// 사용자 직접 드래그/줌 조작 시 진행 중인 카메라 자동 이동 즉시 중단
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  camAnim = null;
+  downPos = { x: e.clientX, y: e.clientY, time: performance.now() };
+});
+renderer.domElement.addEventListener('wheel', () => { camAnim = null; }, { passive: true });
+renderer.domElement.addEventListener('touchstart', () => { camAnim = null; }, { passive: true });
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const dx = e.clientX - downPos.x;
+  const dy = e.clientY - downPos.y;
+  const dt = performance.now() - downPos.time;
+  // 갤럭시 탭 손가락/S펜 터치 허용 오차 (14px 이내, 400ms 이내)
+  if (Math.hypot(dx, dy) < 14 && dt < 400) {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(planetMeshes, false);
+    if (hits.length > 0) {
+      selectAndFocusPlanet(hits[0].object.userData.id);
     } else {
-      document.getElementById('info-panel').classList.remove('show');
-      restorePositions();
-      select.value = "";
+      // 빈 배경 터치 시 우측 탭 닫기
+      closeSideTab();
     }
   }
 });
 
-document.getElementById('closeBtn').addEventListener('click', () => {
-  document.getElementById('info-panel').classList.remove('show');
-  restorePositions();
-  select.value = "";
-});
+// 전체화면 버튼 동작 (표준 및 웹킷 호환)
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const fsPath = document.getElementById('fs-path');
+const EXPAND_PATH = "M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3";
+const SHRINK_PATH = "M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3";
 
-document.getElementById('fullscreenBtn').addEventListener('click', () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(err => console.log(err));
+fullscreenBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const doc = document;
+  const el = document.documentElement;
+  const isFs = doc.fullscreenElement || doc.webkitFullscreenElement;
+  if (!isFs) {
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   } else {
-    if (document.exitFullscreen) document.exitFullscreen();
+    if (doc.exitFullscreen) doc.exitFullscreen().catch(() => {});
+    else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
   }
 });
+
+function syncFullscreenIcon() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  fsPath.setAttribute('d', isFs ? SHRINK_PATH : EXPAND_PATH);
+}
+document.addEventListener('fullscreenchange', syncFullscreenIcon);
+document.addEventListener('webkitfullscreenchange', syncFullscreenIcon);
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -245,33 +668,72 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function animate() {
+// 메인 렌더링 루프 및 스마트 라벨 위치/가시성 업데이트
+const projVec = new THREE.Vector3();
+function animate(now) {
   requestAnimationFrame(animate);
+
+  if (camAnim) {
+    const t = Math.min(1, (now - camAnim.startTime) / camAnim.duration);
+    const ease = 1 - Math.pow(1 - t, 3);
+    controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, ease);
+    camera.position.lerpVectors(camAnim.startCam, camAnim.endCam, ease);
+    if (t >= 1) camAnim = null;
+  }
+
   controls.update();
-  
-  labels.forEach(l => {
-    if(!l.mesh.visible) {
-      l.element.style.display = 'none';
+
+  // 천체 미세 자전
+  planetMeshes.forEach(m => {
+    m.rotation.y += 0.0012;
+  });
+
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  planetMeshes.forEach(m => {
+    const label = m.userData.labelEl;
+    if (!m.visible) {
+      label.style.display = 'none';
       return;
     }
-    const pos = l.mesh.position.clone();
-    pos.y += l.mesh.userData.radius;
-    pos.project(camera);
-    
-    if (pos.z > 1 || pos.x < -1 || pos.x > 1 || pos.y < -1 || pos.y > 1) {
-      l.element.style.display = 'none';
-    } else {
-      l.element.style.display = 'block';
-      const x = (pos.x * .5 + .5) * window.innerWidth;
-      const y = (pos.y * -.5 + .5) * window.innerHeight;
-      l.element.style.left = `${x}px`;
-      l.element.style.top = `${y}px`;
+
+    const r = m.userData.radius;
+    const distToCam = camera.position.distanceTo(m.position);
+    // 화면상 겉보기 크기 계산: 너무 작아 점으로 보이거나 너무 거대해 화면을 덮을 때는 이름표 정리
+    const apparentRatio = (r * 2) / distToCam;
+
+    if (!isCompareMode && m.userData.id !== selectedId && (apparentRatio < 0.012 || apparentRatio > 3.5)) {
+      label.style.display = 'none';
+      return;
     }
+
+    projVec.copy(m.position);
+    projVec.y += r * 1.04;
+    projVec.project(camera);
+
+    if (projVec.z > 1 || projVec.x < -1.05 || projVec.x > 1.05 || projVec.y < -1.05 || projVec.y > 1.05) {
+      label.style.display = 'none';
+      return;
+    }
+
+    const x = (projVec.x * 0.5 + 0.5) * w;
+    const y = (-projVec.y * 0.5 + 0.5) * h;
+
+    // 우측 하단 전체화면 버튼 영역과 겹침 방지
+    if (x > w - 85 && y > h - 85) {
+      label.style.display = 'none';
+      return;
+    }
+
+    label.style.display = 'flex';
+    label.style.left = `${x}px`;
+    label.style.top = `${y}px`;
   });
-  
+
   renderer.render(scene, camera);
 }
-animate();
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
